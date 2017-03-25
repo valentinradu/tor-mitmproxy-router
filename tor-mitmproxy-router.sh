@@ -14,6 +14,9 @@
 ##  }
 ##
 ## invocation: tor-router.sh [start|stop|start_router|stop_router]
+## 
+## /etc/dnsmasq.conf:
+## range, gateway and router
 
 if [[ $EUID -ne 0 ]]; then
   echo 'You must be root' 1>&2
@@ -24,16 +27,8 @@ fi
 ## the following used only in 'router' mode
 LOCAL_NIC='ens38' 
 LOCAL_IP='10.0.1.1/24'
-LOCAL_RANGE='10.0.1.100,10.0.1.110'
 
 start_me() {
-  service tor start
-  sleep 1
-  pidof tor >/dev/null || { echo 'Tor is not running!'; exit 1; }
-  service redsocks start
-  sleep 1  
-  pidof redsocks > /dev/null || { echo 'Redsocks is not running!'; exit 1; }
-
   ## make REDSOCKS chain
   iptables -t nat -N REDSOCKS
   ## exclude reserved addresses
@@ -49,10 +44,14 @@ start_me() {
   iptables -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12345
   ## exclude tor traffic from being redirected to redsocks
   iptables -t nat -A OUTPUT -p tcp -m owner \! --uid-owner $(id -u debian-tor) -j REDSOCKS
-  # iptables -t nat -A OUTPUT -p tcp -m owner --uid-owner user -j REDSOCKS
-  ## redirect to mitmproxy
-  iptables -t nat -A PREROUTING -i ens38 -p tcp --dport 80 -j REDIRECT --to-port 8080
-  iptables -t nat -A PREROUTING -i ens38 -p tcp --dport 433 -j REDIRECT --to-port 8080
+  ## iptables -t nat -A OUTPUT -p tcp -m owner --uid-owner watson -j REDSOCKS
+
+  service tor start
+  sleep 1
+  pidof tor >/dev/null || { echo 'Tor is not running!'; exit 1; }
+  service redsocks start
+  sleep 1  
+  pidof redsocks > /dev/null || { echo 'Redsocks is not running!'; exit 1; }
 }
 
 start_router() {
@@ -60,9 +59,12 @@ start_router() {
   start_me
   sleep 1
   ifconfig $LOCAL_NIC $LOCAL_IP up
-  iptables -t nat -A PREROUTING --in-interface $LOCAL_NIC -p tcp -j REDSOCKS
+  iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -j REDSOCKS
+  ## redirect to mitmproxy
+  #iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp --dport 80 -j REDIRECT --to-port 8080
+  #iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp --dport 433 -j REDIRECT --to-port 8080
   echo 1 > /proc/sys/net/ipv4/ip_forward
-  dnsmasq -i $LOCAL_NIC -F $LOCAL_RANGE
+  service dnsmasq start
 }
 
 stop_me() {
@@ -77,10 +79,9 @@ stop_me() {
   iptables -t nat -F REDSOCKS
   iptables -t nat -X REDSOCKS
   echo 0 > /proc/sys/net/ipv4/ip_forward
-  [ -e /var/run/dnsmasq.pid ] &&
-  kill $(cat /var/run/dnsmasq.pid) && rm /var/run/dnsmasq.pid
   service tor stop
   service redsocks stop
+  service dnsmasq stop
   [ -z $(ifconfig $LOCAL_NIC &>/dev/null| awk '/UP/') ] || ifconfig $LOCAL_NIC down
 }
 
