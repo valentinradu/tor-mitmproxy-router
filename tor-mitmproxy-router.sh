@@ -23,7 +23,7 @@ fi
 
 ## the following used only in 'router' mode
 LOCAL_NIC='ens38' 
-LOCAL_IP='10.0.1.0/24'
+LOCAL_IP='10.0.1.1/24'
 LOCAL_RANGE='10.0.1.100,10.0.1.110'
 
 start_me() {
@@ -59,7 +59,7 @@ start_router() {
   ifconfig $LOCAL_NIC || exit 1
   start_me
   sleep 1
-  ifconfig $LOCAL_NIC ${LOCAL_IP/%.0*/.1} up
+  ifconfig $LOCAL_NIC $LOCAL_IP up
   iptables -t nat -A PREROUTING --in-interface $LOCAL_NIC -p tcp -j REDSOCKS
   echo 1 > /proc/sys/net/ipv4/ip_forward
   dnsmasq -i $LOCAL_NIC -F $LOCAL_RANGE
