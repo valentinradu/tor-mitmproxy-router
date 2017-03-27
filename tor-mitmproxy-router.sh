@@ -59,10 +59,10 @@ start_router() {
   start_me
   sleep 1
   ifconfig $LOCAL_NIC $LOCAL_IP up
-  iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -j REDSOCKS
+  # iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -j REDSOCKS
+  iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -m multiport --dports 80,443 -j REDIRECT --to-port 8080
+  iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -m multiport \! --dports 80,443 -j REDSOCKS
   ## redirect to mitmproxy
-  #iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp --dport 80 -j REDIRECT --to-port 8080
-  #iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp --dport 433 -j REDIRECT --to-port 8080
   echo 1 > /proc/sys/net/ipv4/ip_forward
   service dnsmasq start
 }
@@ -76,8 +76,8 @@ stop_me() {
   ## if present delete it
   [ -z "$REDSOCKS" ] || for i in $REDSOCKS; do iptables -t nat -D PREROUTING $i; done
   ## flush and delete REDSOCKS chain
-  iptables -t nat -F REDSOCKS
-  iptables -t nat -X REDSOCKS
+  iptables -t nat -F
+  iptables -t nat -X
   echo 0 > /proc/sys/net/ipv4/ip_forward
   service tor stop
   service redsocks stop
