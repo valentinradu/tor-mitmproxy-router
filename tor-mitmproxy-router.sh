@@ -60,9 +60,9 @@ start_router() {
   sleep 1
   ifconfig $LOCAL_NIC $LOCAL_IP up
   # iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -j REDSOCKS
+  ## redirect to mitmproxy
   iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -m multiport --dports 80,443 -j REDIRECT --to-port 8080
   iptables -t nat -A PREROUTING -i $LOCAL_NIC -p tcp -m multiport \! --dports 80,443 -j REDSOCKS
-  ## redirect to mitmproxy
   echo 1 > /proc/sys/net/ipv4/ip_forward
   service dnsmasq start
 }
